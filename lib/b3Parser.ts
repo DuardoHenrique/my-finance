@@ -49,28 +49,55 @@ function cleanNumber(val: any): number {
   return isNaN(num) ? 0 : num;
 }
 
-function inferCategory(ticker: string, name: string): 'Ações' | 'FIIs' | 'Renda Fixa' {
+const KNOWN_UNITS = new Set(['TAEE11', 'KLBN11', 'SAPR11', 'SANB11', 'ALUP11', 'BPAC11', 'ENGI11', 'TIET11', 'SOMA11']);
+
+function inferCategory(ticker: string, name: string, typeStr: string = ''): 'Ações' | 'FIIs' | 'Renda Fixa' {
   const upperTicker = ticker.toUpperCase();
   const upperName = name.toUpperCase();
+  const upperType = typeStr.toUpperCase();
 
-  if (upperTicker.endsWith('11') || upperName.includes('FII') || upperName.includes('FUNDO IMOBILIARIO') || upperName.includes('IMOB')) {
-    return 'FIIs';
-  }
-  if (upperTicker.startsWith('LFT') || upperTicker.startsWith('NTNB') || upperTicker.startsWith('LTN') || upperName.includes('TESOURO') || upperName.includes('CDB')) {
+  if (upperTicker.startsWith('LFT') || upperTicker.startsWith('NTNB') || upperTicker.startsWith('LTN') || upperName.includes('TESOURO') || upperName.includes('CDB') || upperName.includes('DEBENTURE')) {
     return 'Renda Fixa';
   }
+
+  // Known stock units
+  if (KNOWN_UNITS.has(upperTicker) || upperType.includes('UNIT') || upperType.includes('ON') || upperType.includes('PN')) {
+    return 'Ações';
+  }
+
+  if (
+    upperName.includes('FII') || 
+    upperName.includes('FUNDO IMOBILIARIO') || 
+    upperName.includes('FUNDO IMOB') || 
+    upperName.includes('INVESTIMENTO IMOBILIARIO') ||
+    upperName.includes('IMOB') ||
+    upperType.includes('FII') ||
+    (upperTicker.endsWith('11') && !KNOWN_UNITS.has(upperTicker) && !upperName.includes('S.A.') && !upperName.includes('SA'))
+  ) {
+    return 'FIIs';
+  }
+
   return 'Ações';
 }
 
 function cleanName(rawName: string, ticker: string): string {
   if (!rawName || rawName.trim() === '') return ticker;
+  
+  let cleaned = rawName.trim();
+
+  // If name starts with "TICKER - ", remove the ticker prefix for a cleaner company name
+  const tickerPrefixRegex = new RegExp(`^${ticker}\\s*-\\s*`, 'i');
+  cleaned = cleaned.replace(tickerPrefixRegex, '');
+
   // Clean prefix noise from B3 export descriptions
-  return rawName
+  cleaned = cleaned
     .replace(/^FRAC\s+-\s+/i, '')
     .replace(/^ON\s+-\s+/i, '')
     .replace(/^PN\s+-\s+/i, '')
     .replace(/^UNT\s+-\s+/i, '')
     .trim();
+
+  return cleaned || ticker;
 }
 
 export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
@@ -90,7 +117,28 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
       };
     }
 
-    for (const sheetName of workbook.SheetNames) {
+    // Identify position sheets and skip non-position sheets (proventos, histórico, negociação)
+    let validSheets = workbook.SheetNames.filter((sheetName) => {
+      const lower = sheetName.toLowerCase();
+      return !lower.includes('provento') &&
+             !lower.includes('rendimento') &&
+             !lower.includes('dividendo') &&
+             !lower.includes('jcp') &&
+             !lower.includes('histórico') &&
+             !lower.includes('historico') &&
+             !lower.includes('negociação') &&
+             !lower.includes('negociacao') &&
+             !lower.includes('movimentação') &&
+             !lower.includes('movimentacao') &&
+             !lower.includes('eventos');
+    });
+
+    // Fallback: If filtering removed all sheets, use all sheets
+    if (validSheets.length === 0) {
+      validSheets = workbook.SheetNames;
+    }
+
+    for (const sheetName of validSheets) {
       const worksheet = workbook.Sheets[sheetName];
       if (!worksheet) continue;
 
@@ -111,33 +159,61 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
         institution: -1,
       };
 
-      for (let i = 0; i < Math.min(rows.length, 20); i++) {
-        const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' | ');
+      for (let i = 0; i < Math.min(rows.length, 25); i++) {
+        const row = rows[i];
+        const rowStr = row.map(c => String(c).toLowerCase()).join(' | ');
 
         if (
           rowStr.includes('código') || rowStr.includes('codigo') || rowStr.includes('produto') ||
           rowStr.includes('empresa') || rowStr.includes('ativo') || rowStr.includes('ticker') ||
-          rowStr.includes('quantidade') || rowStr.includes('qtd') || rowStr.includes('posição')
+          rowStr.includes('quantidade') || rowStr.includes('qtd') || rowStr.includes('posição') ||
+          rowStr.includes('posicao')
         ) {
           headerRowIdx = i;
-          rows[i].forEach((cell, colIdx) => {
+          row.forEach((cell, colIdx) => {
             const cStr = String(cell).toLowerCase().trim();
-            if (cStr.includes('código') || cStr.includes('codigo') || cStr.includes('ticker') || cStr.includes('simbolo')) {
+
+            // Ticker: Prioritize exact 'código de negociação' or 'ticker', exclude ISIN
+            if (cStr === 'código de negociação' || cStr === 'codigo de negociacao' || cStr === 'ticker' || cStr === 'código do ativo') {
               colIndices.ticker = colIdx;
-            } else if (cStr.includes('produto') || cStr.includes('empresa') || cStr.includes('especificação') || cStr.includes('razão social') || cStr.includes('nome')) {
+            } else if (colIndices.ticker === -1 && (cStr.includes('código') || cStr.includes('codigo') || cStr.includes('ticker')) && !cStr.includes('isin')) {
+              colIndices.ticker = colIdx;
+            }
+
+            // Name
+            if (cStr.includes('produto') || cStr.includes('empresa') || cStr.includes('especificação') || cStr.includes('razão social') || cStr.includes('nome')) {
               if (colIndices.name === -1) colIndices.name = colIdx;
-            } else if (cStr.includes('quantidade') || cStr.includes('qtd') || cStr.includes('posicao') || cStr.includes('quant')) {
+            }
+
+            // Quantity: Prioritize exact 'quantidade' or 'quantidade disponível', exclude 'indisponível' or 'bloqueada'
+            if (cStr === 'quantidade' || cStr === 'qtd') {
               colIndices.quantity = colIdx;
-            } else if (cStr.includes('preço') || cStr.includes('preco') || cStr.includes('custo') || cStr.includes('valor unitario')) {
+            } else if (colIndices.quantity === -1 && cStr.includes('quantidade disponível')) {
+              colIndices.quantity = colIdx;
+            } else if (colIndices.quantity === -1 && (cStr.includes('quantidade') || cStr.includes('qtd') || cStr.includes('quant')) && !cStr.includes('indisponível') && !cStr.includes('indisponivel') && !cStr.includes('bloqueada')) {
+              colIndices.quantity = colIdx;
+            }
+
+            // Price (Unit price or Closing price or Avg price)
+            if (cStr.includes('preço de fechamento') || cStr.includes('preco de fechamento') || cStr.includes('preço médio') || cStr.includes('preco medio') || cStr.includes('custo médio') || cStr.includes('custo de aquisição') || cStr.includes('valor unitario') || cStr.includes('preço unitário')) {
               colIndices.price = colIdx;
-            } else if (cStr.includes('valor total') || cStr.includes('valor atual') || cStr.includes('posicao em r$')) {
+            } else if (colIndices.price === -1 && (cStr.includes('preço') || cStr.includes('preco') || cStr.includes('custo'))) {
+              colIndices.price = colIdx;
+            }
+
+            // Total Value
+            if (cStr.includes('valor atualizado') || cStr.includes('valor total') || cStr.includes('posição em r$') || cStr.includes('posicao em r$') || cStr.includes('valor atual')) {
               colIndices.total = colIdx;
-            } else if (cStr.includes('tipo') || cStr.includes('categoria') || cStr.includes('mercado')) {
-              colIndices.type = colIdx;
-            } else if (cStr.includes('data')) {
-              colIndices.date = colIdx;
-            } else if (cStr.includes('instituição') || cStr.includes('instituicao') || cStr.includes('corretora')) {
+            }
+
+            // Institution / Corretora
+            if (cStr.includes('instituição') || cStr.includes('instituicao') || cStr.includes('corretora')) {
               colIndices.institution = colIdx;
+            }
+
+            // Category / Type
+            if (cStr.includes('tipo') || cStr.includes('categoria') || cStr.includes('mercado')) {
+              colIndices.type = colIdx;
             }
           });
           break;
@@ -188,17 +264,21 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
         if (!ticker) continue; // Skip non-asset rows (summaries, headers, etc)
 
         // Extract numbers
-        if (colIndices.quantity >= 0 && row[colIndices.quantity]) {
+        if (colIndices.quantity >= 0 && row[colIndices.quantity] !== undefined) {
           quantity = cleanNumber(row[colIndices.quantity]);
         }
-        if (colIndices.price >= 0 && row[colIndices.price]) {
+        if (colIndices.price >= 0 && row[colIndices.price] !== undefined) {
           price = cleanNumber(row[colIndices.price]);
         }
-        if (colIndices.total >= 0 && row[colIndices.total]) {
+        if (colIndices.total >= 0 && row[colIndices.total] !== undefined) {
           totalValue = cleanNumber(row[colIndices.total]);
         }
         if (colIndices.date >= 0 && row[colIndices.date]) {
           dateStr = String(row[colIndices.date]).trim();
+        }
+        let typeStr = '';
+        if (colIndices.type >= 0 && row[colIndices.type]) {
+          typeStr = String(row[colIndices.type]).trim();
         }
         if (colIndices.institution >= 0 && row[colIndices.institution]) {
           institution = String(row[colIndices.institution]).trim();
@@ -211,9 +291,14 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
           totalValue = price * quantity;
         }
 
+        // Fix if totalValue was mistakenly put into price
+        if (quantity > 1 && price > 0 && totalValue > 0 && Math.abs(price - totalValue) < 0.01) {
+          price = totalValue / quantity;
+        }
+
         // Clean name
         const finalName = cleanName(name, ticker);
-        const category = inferCategory(ticker, finalName);
+        const category = inferCategory(ticker, finalName, typeStr);
 
         // Aggregate if duplicate ticker found in sheet
         if (assetsMap.has(ticker)) {
@@ -222,14 +307,14 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
           const newTotal = existing.totalValue + totalValue;
           existing.quantity = newQty;
           existing.totalValue = newTotal;
-          existing.averagePrice = newQty > 0 ? newTotal / newQty : existing.averagePrice;
+          existing.averagePrice = newQty > 0 ? parseFloat((newTotal / newQty).toFixed(2)) : existing.averagePrice;
         } else {
           assetsMap.set(ticker, {
             id: `b3-${ticker}-${Math.random().toString(36).substring(2, 7)}`,
             ticker,
             name: finalName,
             category,
-            quantity: quantity || 1,
+            quantity: quantity,
             averagePrice: parseFloat(price.toFixed(2)),
             totalValue: parseFloat(totalValue.toFixed(2)),
             date: dateStr,
