@@ -48,48 +48,8 @@ interface Provento {
   observacoes?: string;
 }
 
-// Initial realistic mock data as specified
-const INITIAL_ASSETS: Asset[] = [
-  { id: 'b1', name: 'Tesouro Selic 2029', ticker: 'LFT2029', category: 'Renda Fixa', quantity: 1, averagePrice: 14200.00, currentPrice: 14550.00, observacoes: 'Reserva de liquidez principal' },
-  { id: 'b2', name: 'CDB Banco Master 120% CDI', ticker: 'CDB-MASTER', category: 'Renda Fixa', quantity: 1, averagePrice: 20000.00, currentPrice: 21150.00, observacoes: 'IPCA+ garantido médio prazo' },
-  { id: 'b3', name: 'Petrobras S.A.', ticker: 'PETR4', category: 'Ações', quantity: 150, averagePrice: 32.50, currentPrice: 38.20, observacoes: 'Foco em altos proventos e dividendos' },
-  { id: 'b4', name: 'Vale S.A.', ticker: 'VALE3', category: 'Ações', quantity: 80, averagePrice: 68.00, currentPrice: 62.10, observacoes: 'Exposição global a commodities' },
-  { id: 'b5', name: 'Itaú Unibanco S.A.', ticker: 'ITUB4', category: 'Ações', quantity: 120, averagePrice: 28.50, currentPrice: 33.90, observacoes: 'Excelente governança financeira' },
-  { id: 'b6', name: 'CSHG Logística FII', ticker: 'HGLG11', category: 'FIIs', quantity: 30, averagePrice: 162.00, currentPrice: 166.50, observacoes: 'Ótima carteira de galpões logísticos' },
-  { id: 'b7', name: 'Maxi Renda FII', ticker: 'MXRF11', category: 'FIIs', quantity: 500, averagePrice: 10.15, currentPrice: 10.45, observacoes: 'Fundo de papel de alta liquidez' }
-];
-
-const INITIAL_PROVENTOS: Provento[] = [
-  { id: 'p1', ticker: 'ITUB4', type: 'JCP', amountBRL: 28.80, date: '2025-07-01', observacoes: 'Provento recorrente mensal' },
-  { id: 'p2', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2025-07-15', observacoes: 'Distribuição mensal' },
-  { id: 'p3', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2025-07-15', observacoes: 'Rendimentos das cotas' },
-  { id: 'p4', ticker: 'PETR4', type: 'Dividendo', amountBRL: 120.00, date: '2025-08-20', observacoes: 'Distribuição trimestral extraordinária' },
-  { id: 'p5', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2025-08-15', observacoes: 'FII HGLG11' },
-  { id: 'p6', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2025-08-15', observacoes: 'Cotas papel' },
-  { id: 'p7', ticker: 'VALE3', type: 'Dividendo', amountBRL: 180.00, date: '2025-09-10', observacoes: 'Vale S.A. proventos' },
-  { id: 'p8', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2025-09-15', observacoes: 'Mensal' },
-  { id: 'p9', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2025-09-15', observacoes: 'Mensal' },
-  { id: 'p10', ticker: 'PETR4', type: 'Dividendo', amountBRL: 145.00, date: '2025-11-20', observacoes: 'Distribuição regulamentar' },
-  { id: 'p11', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2025-10-15', observacoes: 'Cotas mensais' },
-  { id: 'p12', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2025-10-15', observacoes: 'Rendimento mensal' },
-  { id: 'p13', ticker: 'ITUB4', type: 'JCP', amountBRL: 31.20, date: '2025-11-01', observacoes: 'JCP pago' },
-  { id: 'p14', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2025-11-15', observacoes: 'Rendimento' },
-  { id: 'p15', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2025-11-15', observacoes: 'Rendimento' },
-  { id: 'p16', ticker: 'VALE3', type: 'Dividendo', amountBRL: 210.00, date: '2025-12-15', observacoes: 'Distribuição final de ano' },
-  { id: 'p17', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2025-12-15', observacoes: 'Rendimento FII' },
-  { id: 'p18', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2025-12-15', observacoes: 'Fechamento de ano' },
-  { id: 'p19', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2026-01-15', observacoes: 'Rendimento de janeiro' },
-  { id: 'p20', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2026-01-15', observacoes: 'MXRF11 recorrente' },
-  { id: 'p21', ticker: 'PETR4', type: 'Dividendo', amountBRL: 165.00, date: '2026-02-20', observacoes: 'Extraordinário Petrobras' },
-  { id: 'p22', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2026-02-15', observacoes: 'Rendimento fevereiro' },
-  { id: 'p23', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2026-02-15', observacoes: 'Papel fevereiro' },
-  { id: 'p24', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2026-03-15', observacoes: 'Março' },
-  { id: 'p25', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2026-03-15', observacoes: 'Março' },
-  { id: 'p26', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2026-04-15', observacoes: 'Galpões' },
-  { id: 'p27', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2026-04-15', observacoes: 'CRI e debêntures' },
-  { id: 'p28', ticker: 'HGLG11', type: 'Rendimento', amountBRL: 33.00, date: '2026-05-15', observacoes: 'Ativo' },
-  { id: 'p29', ticker: 'MXRF11', type: 'Rendimento', amountBRL: 50.00, date: '2026-05-15', observacoes: 'Cotação' }
-];
+const INITIAL_ASSETS: Asset[] = [];
+const INITIAL_PROVENTOS: Provento[] = [];
 
 // Custom tooltip components
 const CustomDonutTooltip = ({ active, payload }: any) => {

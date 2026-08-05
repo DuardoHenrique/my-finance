@@ -6,11 +6,7 @@ import { eq, sum } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 // Mock data fallback
-const mockAssets = [
-  { id: '1', segment: 'brasil', name: 'Petrobras', ticker: 'PETR4', category: 'Ações', currency: 'BRL', quantity: '100', averagePrice: '25.50', notes: '', createdAt: new Date(), updatedAt: new Date() },
-  { id: '2', segment: 'internacional', name: 'Apple', ticker: 'AAPL', category: 'Stocks', currency: 'USD', quantity: '10', averagePrice: '150.00', notes: '', createdAt: new Date(), updatedAt: new Date() },
-  { id: '3', segment: 'cripto', name: 'Bitcoin', ticker: 'BTC', category: 'BTC', currency: 'USD', quantity: '0.5', averagePrice: '40000', notes: '', createdAt: new Date(), updatedAt: new Date() },
-];
+const mockAssets: any[] = [];
 
 export async function getAssets(segment?: string) {
   if (!db) {

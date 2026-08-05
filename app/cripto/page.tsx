@@ -47,20 +47,8 @@ interface Transaction {
   observacoes?: string;
 }
 
-const INITIAL_ASSETS: Asset[] = [
-  { id: 'c1', name: 'Bitcoin', ticker: 'BTC', category: 'BTC', quantity: 0.45, averagePrice: 42500.00, currentPrice: 65200.00, observacoes: 'Acumulação de longo prazo - Halving 2024' },
-  { id: 'c2', name: 'Ethereum', ticker: 'ETH', category: 'Altcoin', quantity: 3.5, averagePrice: 2100.00, currentPrice: 3450.00, observacoes: 'Smart contracts líder de mercado' },
-  { id: 'c3', name: 'Solana', ticker: 'SOL', category: 'Altcoin', quantity: 45, averagePrice: 95.00, currentPrice: 148.00, observacoes: 'Rápida e barata, dApps e NFTs' }
-];
-
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  { id: 't1', date: '2025-05-10', ticker: 'BTC', type: 'Compra', quantity: 0.25, unitPriceUSD: 38500, observacoes: 'Aporte mensal' },
-  { id: 't2', date: '2025-06-12', ticker: 'ETH', type: 'Compra', quantity: 2.0, unitPriceUSD: 1950, observacoes: 'Ethereum upgrade' },
-  { id: 't3', date: '2025-09-05', ticker: 'BTC', type: 'Compra', quantity: 0.20, unitPriceUSD: 47500, observacoes: 'Dip buying' },
-  { id: 't4', date: '2025-10-22', ticker: 'SOL', type: 'Compra', quantity: 45, unitPriceUSD: 95, observacoes: 'Entrada em SOL' },
-  { id: 't5', date: '2025-11-14', ticker: 'ETH', type: 'Compra', quantity: 1.5, unitPriceUSD: 2300, observacoes: 'Aporte mensal' },
-  { id: 't6', date: '2026-03-10', ticker: 'ADA', type: 'Venda', quantity: 1000, unitPriceUSD: 0.65, observacoes: 'Realização de lucro em ADA' }
-];
+const INITIAL_ASSETS: Asset[] = [];
+const INITIAL_TRANSACTIONS: Transaction[] = [];
 
 const MOCK_BTC_HISTORY = [
   { label: 'Jul 25', priceUSD: 58000 },

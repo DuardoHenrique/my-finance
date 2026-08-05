@@ -49,29 +49,8 @@ interface Dividend {
   observacoes?: string;
 }
 
-// Initial realistic mock data as requested
-const INITIAL_ASSETS: Asset[] = [
-  { id: '1', name: 'Apple Inc.', ticker: 'AAPL', category: 'Stocks', quantity: 10, averagePrice: 150.00, currentPrice: 182.50, observacoes: 'Comprado na baixa' },
-  { id: '2', name: 'Microsoft', ticker: 'MSFT', category: 'Stocks', quantity: 5, averagePrice: 280.00, currentPrice: 415.00, observacoes: 'Foco em inteligência artificial' },
-  { id: '3', name: 'Vanguard S&P 500', ticker: 'VOO', category: 'ETFs', quantity: 8, averagePrice: 380.00, currentPrice: 512.00, observacoes: 'ETF principal global' },
-  { id: '4', name: 'Invesco QQQ', ticker: 'QQQ', category: 'ETFs', quantity: 4, averagePrice: 340.00, currentPrice: 480.00, observacoes: 'Tecnologia Nasdaq' },
-  { id: '5', name: 'Realty Income', ticker: 'O', category: 'REITs', quantity: 20, averagePrice: 52.00, currentPrice: 55.00, observacoes: 'Dividendos mensais consistentes' },
-  { id: '6', name: 'Main Street Capital', ticker: 'MAIN', category: 'REITs', quantity: 15, averagePrice: 38.00, currentPrice: 46.00, observacoes: 'Excelente yield financeiro' }
-];
-
-const INITIAL_DIVIDENDS: Dividend[] = [
-  { id: 'd1', ticker: 'VOO', amountUSD: 12.40, date: '2025-07-20', observacoes: 'Dividendo ETF' },
-  { id: 'd2', ticker: 'O', amountUSD: 19.20, date: '2025-08-15', observacoes: 'Mensal REIT' },
-  { id: 'd3', ticker: 'AAPL', amountUSD: 5.80, date: '2025-09-15', observacoes: 'Trimestral' },
-  { id: 'd4', ticker: 'MSFT', amountUSD: 7.50, date: '2025-10-18', observacoes: 'Dividendo de Ações' },
-  { id: 'd5', ticker: 'O', amountUSD: 19.20, date: '2025-11-15', observacoes: 'Distribuição mensal' },
-  { id: 'd6', ticker: 'MAIN', amountUSD: 9.75, date: '2025-12-22', observacoes: 'Mensal e extraordinário' },
-  { id: 'd7', ticker: 'VOO', amountUSD: 12.40, date: '2026-01-20', observacoes: 'Rendimento VOO' },
-  { id: 'd8', ticker: 'AAPL', amountUSD: 5.80, date: '2026-02-15', observacoes: 'Apple Inc.' },
-  { id: 'd9', ticker: 'MSFT', amountUSD: 7.50, date: '2026-03-18', observacoes: 'Dividendo' },
-  { id: 'd10', ticker: 'O', amountUSD: 19.20, date: '2026-04-15', observacoes: 'O Fundo imobiliário' },
-  { id: 'd11', ticker: 'VOO', amountUSD: 12.40, date: '2026-05-20', observacoes: 'ETF Dividendos' }
-];
+const INITIAL_ASSETS: Asset[] = [];
+const INITIAL_DIVIDENDS: Dividend[] = [];
 
 // Helper components declared outside render to fix React warnings
 const CustomDonutTooltip = ({ active, payload }: any) => {
