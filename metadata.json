@@ -1,0 +1,6 @@
+{
+  "name": "MyFinance",
+  "description": "High-density personal finance dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
