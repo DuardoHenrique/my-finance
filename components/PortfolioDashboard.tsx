@@ -3,11 +3,12 @@
 import React, { useState } from 'react';
 import { 
   Plus, Edit, Trash2, X, TrendingUp, HelpCircle, AlertCircle,
-  Wallet, Bitcoin, Globe
+  Wallet, Bitcoin, Globe, FileSpreadsheet
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip } from 'recharts';
 import { addAssetAction, updateAssetAction, deleteAssetAction } from '@/app/actions';
 import { Asset } from '@/lib/db';
+import { B3ImportModal } from '@/components/B3ImportModal';
 
 interface PortfolioDashboardProps {
   portfolio: 'brasil' | 'internacional' | 'cripto';
@@ -28,6 +29,7 @@ export function PortfolioDashboard({
 }: PortfolioDashboardProps) {
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isB3ModalOpen, setIsB3ModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   
   const Icon = portfolio === 'brasil' 
@@ -36,6 +38,28 @@ export function PortfolioDashboard({
       ? Globe 
       : Bitcoin;
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleB3ImportSuccess = async (importedB3Assets: any[]) => {
+    for (const item of importedB3Assets) {
+      const assetData = {
+        name: item.name,
+        ticker: item.ticker,
+        quantity: item.quantity.toString(),
+        averagePrice: item.averagePrice.toString(),
+        currency: 'BRL',
+        category: item.category,
+        portfolio: 'brasil',
+      };
+      try {
+        const created = await addAssetAction(assetData);
+        if (created) {
+          setAssets(prev => [...prev, created as Asset]);
+        }
+      } catch (err) {
+        console.error('Error importing item', item, err);
+      }
+    }
+  };
 
   // Form states
   const [name, setName] = useState('');
@@ -149,13 +173,24 @@ export function PortfolioDashboard({
             <Icon className="w-4 h-4 text-blue-500" /> {title}
           </span>
         </div>
-        <button 
-          onClick={handleOpenAddModal}
-          className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] border border-rgba(240,246,252,0.1) text-[#FFFFFF] px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Adicionar Ativo
-        </button>
+        <div className="flex items-center gap-2">
+          {portfolio === 'brasil' && (
+            <button 
+              onClick={() => setIsB3ModalOpen(true)}
+              className="flex items-center gap-2 bg-[#21262d] hover:bg-[#30363d] border border-white/10 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-green-400" />
+              Importar Relatório B3
+            </button>
+          )}
+          <button 
+            onClick={handleOpenAddModal}
+            className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] border border-rgba(240,246,252,0.1) text-[#FFFFFF] px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            Adicionar Ativo
+          </button>
+        </div>
       </header>
 
       {/* Main Stats Grid */}
@@ -399,6 +434,12 @@ export function PortfolioDashboard({
           </div>
         </div>
       )}
+
+      <B3ImportModal
+        isOpen={isB3ModalOpen}
+        onClose={() => setIsB3ModalOpen(false)}
+        onImportSuccess={handleB3ImportSuccess}
+      />
     </div>
   );
 }

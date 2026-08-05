@@ -25,6 +25,7 @@ import {
   FileSpreadsheet,
   Coins
 } from 'lucide-react';
+import { B3ImportModal } from '@/components/B3ImportModal';
 
 // Interfaces
 interface Asset {
@@ -141,6 +142,43 @@ export default function BrasilPage() {
 
   const [showProventoModal, setShowProventoModal] = useState(false);
   const [selectedTickerForProvento, setSelectedTickerForProvento] = useState('');
+
+  const [showB3Modal, setShowB3Modal] = useState(false);
+
+  const handleB3ImportSuccess = (importedB3Assets: any[]) => {
+    setAssets((prevAssets) => {
+      const updated = [...prevAssets];
+      importedB3Assets.forEach((b3Item) => {
+        const existingIdx = updated.findIndex((a) => a.ticker.toUpperCase() === b3Item.ticker.toUpperCase());
+        const simulatedCurrentPrice = parseFloat((b3Item.averagePrice * (1 + (Math.random() * 0.15 - 0.02))).toFixed(2));
+        
+        if (existingIdx >= 0) {
+          const newQty = updated[existingIdx].quantity + b3Item.quantity;
+          const totalSpent = (updated[existingIdx].quantity * updated[existingIdx].averagePrice) + (b3Item.quantity * b3Item.averagePrice);
+          const newAvgPrice = newQty > 0 ? totalSpent / newQty : b3Item.averagePrice;
+          
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            quantity: newQty,
+            averagePrice: parseFloat(newAvgPrice.toFixed(2)),
+            currentPrice: simulatedCurrentPrice,
+          };
+        } else {
+          updated.push({
+            id: b3Item.id || `b3-${Math.random().toString(36).substring(2, 9)}`,
+            name: b3Item.name,
+            ticker: b3Item.ticker.toUpperCase(),
+            category: b3Item.category as 'Ações' | 'FIIs' | 'Renda Fixa',
+            quantity: b3Item.quantity,
+            averagePrice: b3Item.averagePrice,
+            currentPrice: simulatedCurrentPrice,
+            observacoes: b3Item.institution ? `Importado via B3 (${b3Item.institution})` : 'Importado via B3'
+          });
+        }
+      });
+      return updated;
+    });
+  };
 
   // Asset Form fields
   const [assetForm, setAssetForm] = useState({
@@ -472,6 +510,15 @@ export default function BrasilPage() {
           </h1>
           <p className="text-sm text-white/50">Ativos de Renda Fixa, Ações e Fundos Imobiliários nacionais</p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowB3Modal(true)}
+          className="flex items-center gap-2 bg-[#238636] hover:bg-[#2ea043] border border-white/10 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-lg hover:shadow-green-950/30 font-sans"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-green-300" />
+          <span>Importar Relatório B3 (.xlsx)</span>
+        </button>
       </header>
 
       {/* SECTION 2 — Summary Cards Row (3 cards side by side) */}
@@ -1081,6 +1128,13 @@ export default function BrasilPage() {
           </div>
         </div>
       )}
+
+      {/* B3 Excel Import Modal */}
+      <B3ImportModal
+        isOpen={showB3Modal}
+        onClose={() => setShowB3Modal(false)}
+        onImportSuccess={handleB3ImportSuccess}
+      />
 
     </div>
   );

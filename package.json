@@ -11,19 +11,20 @@
   "dependencies": {
     "@google/genai": "latest",
     "@hookform/resolvers": "latest",
+    "@neondatabase/serverless": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
+    "date-fns": "latest",
+    "dotenv": "latest",
+    "drizzle-orm": "latest",
     "lucide-react": "latest",
     "motion": "latest",
     "next": "15.4.9",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "tailwind-merge": "latest",
     "recharts": "^2.11.0",
-    "date-fns": "latest",
-    "drizzle-orm": "latest",
-    "@neondatabase/serverless": "latest",
-    "dotenv": "latest"
+    "tailwind-merge": "latest",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.11",
@@ -31,15 +32,15 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "autoprefixer": "latest",
+    "drizzle-kit": "latest",
     "eslint": "9.39.1",
     "eslint-config-next": "16.0.8",
     "firebase-tools": "latest",
-    "tailwindcss": "4.1.11",
-    "tw-animate-css": "latest",
-    "typescript": "5.9.3",
     "postcss": "latest",
-    "autoprefixer": "latest",
-    "drizzle-kit": "latest",
-    "tsx": "latest"
+    "tailwindcss": "4.1.11",
+    "tsx": "latest",
+    "tw-animate-css": "latest",
+    "typescript": "5.9.3"
   }
 }
