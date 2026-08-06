@@ -29,6 +29,9 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 
+import { InternationalImportModal } from '@/components/InternationalImportModal';
+import { ExtractedInternationalAsset } from '@/lib/internationalParser';
+
 // Interfaces
 interface Asset {
   id: string;
@@ -100,6 +103,7 @@ export default function InternacionalPage() {
   // Modal Control States
   const [showAssetModal, setShowAssetModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const [showDividendModal, setShowDividendModal] = useState(false);
   const [selectedTickerForDividend, setSelectedTickerForDividend] = useState('');
@@ -199,6 +203,38 @@ export default function InternacionalPage() {
       observacoes: ''
     });
     setShowAssetModal(true);
+  };
+
+  const handleInternationalImportSuccess = (imported: ExtractedInternationalAsset[]) => {
+    const newAssets: Asset[] = imported.map((imp) => ({
+      id: imp.id || Math.random().toString(36).substring(2, 9),
+      name: imp.name,
+      ticker: imp.ticker,
+      category: imp.category,
+      quantity: imp.quantity,
+      averagePrice: imp.averagePrice,
+      currentPrice: imp.currentPrice,
+      observacoes: imp.institution ? `Importado via Excel (${imp.institution})` : 'Importado via Excel'
+    }));
+
+    setAssets(prev => {
+      const map = new Map<string, Asset>();
+      prev.forEach(a => map.set(a.ticker.toUpperCase(), a));
+      newAssets.forEach(a => {
+        const t = a.ticker.toUpperCase();
+        if (map.has(t)) {
+          const existing = map.get(t)!;
+          const totalQty = existing.quantity + a.quantity;
+          const totalCost = (existing.quantity * existing.averagePrice) + (a.quantity * a.averagePrice);
+          existing.quantity = totalQty;
+          existing.averagePrice = totalQty > 0 ? parseFloat((totalCost / totalQty).toFixed(2)) : existing.averagePrice;
+          existing.currentPrice = a.currentPrice || existing.currentPrice;
+        } else {
+          map.set(t, a);
+        }
+      });
+      return Array.from(map.values());
+    });
   };
 
   // Handle Delete Asset
@@ -412,6 +448,17 @@ export default function InternacionalPage() {
             <span className="text-xl">🌍</span> Internacional
           </h1>
           <p className="text-sm text-white/50">Ações, ETFs e REITs internacionais em moeda forte</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-[#21262d] hover:bg-[#30363d] border border-white/10 text-white px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-blue-400" />
+            <span>Importar Relatório XLSX</span>
+          </button>
         </div>
       </header>
 
@@ -1003,6 +1050,13 @@ export default function InternacionalPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL — International XLSX Import */}
+      <InternationalImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={handleInternationalImportSuccess}
+      />
 
     </div>
   );
