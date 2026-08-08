@@ -123,17 +123,17 @@ export async function addAsset(assetData: Omit<Asset, 'id'>): Promise<Asset> {
   }
 }
 
-export async function updateAsset(id: string, assetData: Partial<Omit<Asset, 'id'>>): Promise<Asset> {
+export async function updateAsset(id: string, assetData: Partial<Omit<Asset, 'id'>>, userId?: string): Promise<Asset> {
   await checkAndInitDb();
 
   if (isValidPostgresUrl) {
     try {
       const sql = neon(databaseUrl!);
-      const existing = await sql`
-        SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio 
-        FROM assets WHERE id = ${id}
-      `;
-      if (existing.length === 0) throw new Error('Asset not found');
+      const existing = userId 
+        ? await sql`SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio FROM assets WHERE id = ${id} AND user_id = ${userId}`
+        : await sql`SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio FROM assets WHERE id = ${id}`;
+      
+      if (existing.length === 0) throw new Error('Asset not found or unauthorized');
 
       const current = existing[0];
       const updated = {
@@ -146,17 +146,31 @@ export async function updateAsset(id: string, assetData: Partial<Omit<Asset, 'id
         portfolio: assetData.portfolio ?? current.portfolio,
       };
 
-      await sql`
-        UPDATE assets 
-        SET name = ${updated.name}, 
-            ticker = ${updated.ticker}, 
-            quantity = ${updated.quantity}, 
-            average_price = ${updated.averagePrice}, 
-            currency = ${updated.currency}, 
-            category = ${updated.category}, 
-            portfolio = ${updated.portfolio}
-        WHERE id = ${id};
-      `;
+      if (userId) {
+        await sql`
+          UPDATE assets 
+          SET name = ${updated.name}, 
+              ticker = ${updated.ticker}, 
+              quantity = ${updated.quantity}, 
+              average_price = ${updated.averagePrice}, 
+              currency = ${updated.currency}, 
+              category = ${updated.category}, 
+              portfolio = ${updated.portfolio}
+          WHERE id = ${id} AND user_id = ${userId};
+        `;
+      } else {
+        await sql`
+          UPDATE assets 
+          SET name = ${updated.name}, 
+              ticker = ${updated.ticker}, 
+              quantity = ${updated.quantity}, 
+              average_price = ${updated.averagePrice}, 
+              currency = ${updated.currency}, 
+              category = ${updated.category}, 
+              portfolio = ${updated.portfolio}
+          WHERE id = ${id};
+        `;
+      }
 
       return {
         id,
@@ -173,24 +187,28 @@ export async function updateAsset(id: string, assetData: Partial<Omit<Asset, 'id
   let assets: Asset[] = JSON.parse(data);
   let updatedAsset: Asset | null = null;
   assets = assets.map((asset) => {
-    if (asset.id === id) {
+    if (asset.id === id && (!userId || asset.userId === userId)) {
       updatedAsset = { ...asset, ...assetData };
       return updatedAsset;
     }
     return asset;
   });
-  if (!updatedAsset) throw new Error('Asset not found');
+  if (!updatedAsset) throw new Error('Asset not found or unauthorized');
   await fs.writeFile(DATA_FILE_PATH, JSON.stringify(assets, null, 2), 'utf8');
   return updatedAsset;
 }
 
-export async function deleteAsset(id: string) {
+export async function deleteAsset(id: string, userId?: string) {
   await checkAndInitDb();
 
   if (isValidPostgresUrl) {
     try {
       const sql = neon(databaseUrl!);
-      await sql`DELETE FROM assets WHERE id = ${id}`;
+      if (userId) {
+        await sql`DELETE FROM assets WHERE id = ${id} AND user_id = ${userId}`;
+      } else {
+        await sql`DELETE FROM assets WHERE id = ${id}`;
+      }
       return { success: true };
     } catch (err) {
       console.error('PostgreSQL deleteAsset error:', err);
@@ -200,7 +218,11 @@ export async function deleteAsset(id: string) {
   // Fallback to JSON
   const data = await fs.readFile(DATA_FILE_PATH, 'utf8');
   const assets: Asset[] = JSON.parse(data);
-  const filteredAssets = assets.filter((asset) => asset.id !== id);
+  const filteredAssets = assets.filter((asset) => {
+    if (asset.id !== id) return true;
+    if (userId && asset.userId !== userId) return true;
+    return false;
+  });
   await fs.writeFile(DATA_FILE_PATH, JSON.stringify(filteredAssets, null, 2), 'utf8');
   return { success: true };
 }

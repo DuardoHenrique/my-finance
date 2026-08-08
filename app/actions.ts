@@ -34,7 +34,7 @@ export async function updateAssetAction(id: string, assetData: Partial<Omit<Asse
   if (!sessionUser) {
     throw new Error('Não autorizado');
   }
-  const result = await updateAsset(id, assetData);
+  const result = await updateAsset(id, assetData, sessionUser.id);
   revalidatePath('/');
   revalidatePath('/brasil');
   revalidatePath('/internacional');
@@ -47,7 +47,7 @@ export async function deleteAssetAction(id: string) {
   if (!sessionUser) {
     throw new Error('Não autorizado');
   }
-  const result = await deleteAsset(id);
+  const result = await deleteAsset(id, sessionUser.id);
   revalidatePath('/');
   revalidatePath('/brasil');
   revalidatePath('/internacional');

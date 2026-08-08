@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useCurrency } from '@/lib/context/CurrencyContext';
+import { calculatePortfolioMetrics } from '@/lib/finance/calculations';
 import { AllocationChart, NetWorthChart } from './DashboardCharts';
 import { TrendingUp, TrendingDown, Wallet, Globe, Coins, ArrowUpRight } from 'lucide-react';
 
@@ -41,39 +42,15 @@ export default function DashboardClientPage() {
     fetchAssets();
   }, []);
 
-  // Calculate totals per segment (stored in USD internally)
-  let brasilUSD = 0;
-  let internacionalUSD = 0;
-  let criptoUSD = 0;
-
-  assets.forEach((a) => {
-    const qty = parseFloat(a.quantity) || 0;
-    const price = parseFloat(a.averagePrice) || 0;
-    const nativeValue = qty * price;
-    const assetCurrency = a.currency || (a.portfolio === 'brasil' ? 'BRL' : 'USD');
-
-    let valUSD = 0;
-    if (assetCurrency === 'USD') {
-      valUSD = nativeValue;
-    } else {
-      valUSD = nativeValue / exchangeRate;
-    }
-
-    if (a.portfolio === 'brasil') {
-      brasilUSD += valUSD;
-    } else if (a.portfolio === 'internacional') {
-      internacionalUSD += valUSD;
-    } else if (a.portfolio === 'cripto') {
-      criptoUSD += valUSD;
-    }
-  });
-
-  const totalPortfolioUSD = brasilUSD + internacionalUSD + criptoUSD;
-
-  // Percentages of total portfolio
-  const pctBrasil = totalPortfolioUSD > 0 ? (brasilUSD / totalPortfolioUSD) * 100 : 0;
-  const pctIntl = totalPortfolioUSD > 0 ? (internacionalUSD / totalPortfolioUSD) * 100 : 0;
-  const pctCripto = totalPortfolioUSD > 0 ? (criptoUSD / totalPortfolioUSD) * 100 : 0;
+  const {
+    brasilUSD,
+    internacionalUSD,
+    criptoUSD,
+    totalPortfolioUSD,
+    pctBrasil,
+    pctIntl,
+    pctCripto,
+  } = calculatePortfolioMetrics(assets, exchangeRate);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-16">
