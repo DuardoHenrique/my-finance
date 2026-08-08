@@ -72,8 +72,10 @@ async function saveUsers(users: User[]) {
   await fs.writeFile(USERS_FILE_PATH, JSON.stringify(users, null, 2), 'utf8');
 }
 
+const PASSWORD_SALT = 'myfinance_password_salt_2026';
+
 export function hashPassword(password: string): string {
-  return crypto.createHmac('sha256', SECRET_KEY).update(password).digest('hex');
+  return crypto.createHmac('sha256', PASSWORD_SALT).update(password).digest('hex');
 }
 
 export function createToken(payload: SessionUser): string {
