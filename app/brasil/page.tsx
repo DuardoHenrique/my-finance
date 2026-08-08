@@ -105,23 +105,51 @@ export default function BrasilPage() {
 
   const [showB3Modal, setShowB3Modal] = useState(false);
 
+  const fetchRealTimePrices = async (assetsToUpdate: Asset[]) => {
+    const tickersToFetch = assetsToUpdate
+      .map((a) => a.ticker)
+      .filter((t) => t && !t.toUpperCase().startsWith('CDB') && !t.toUpperCase().startsWith('TESOURO') && !t.toUpperCase().includes('CDI'));
+
+    if (tickersToFetch.length === 0) return;
+
+    try {
+      const res = await fetch(`/api/prices/b3?tickers=${encodeURIComponent(tickersToFetch.join(','))}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const priceMap: Record<string, number> = data.prices || {};
+
+      setAssets((prev) =>
+        prev.map((asset) => {
+          const fetchedPrice = priceMap[asset.ticker.toUpperCase()];
+          if (fetchedPrice && fetchedPrice > 0) {
+            return { ...asset, currentPrice: fetchedPrice };
+          }
+          return asset;
+        })
+      );
+    } catch (err) {
+      console.error('Error fetching real-time prices:', err);
+    }
+  };
+
   const handleB3ImportSuccess = (importedB3Assets: any[]) => {
+    let updatedList: Asset[] = [];
+
     setAssets((prevAssets) => {
       const updated = [...prevAssets];
       importedB3Assets.forEach((b3Item) => {
         const existingIdx = updated.findIndex((a) => a.ticker.toUpperCase() === b3Item.ticker.toUpperCase());
-        const simulatedCurrentPrice = parseFloat((b3Item.averagePrice * (1 + (Math.random() * 0.15 - 0.02))).toFixed(2));
-        
+        const costPrice = b3Item.buyPrice && b3Item.buyPrice > 0 ? b3Item.buyPrice : b3Item.averagePrice;
+
         if (existingIdx >= 0) {
           const newQty = updated[existingIdx].quantity + b3Item.quantity;
-          const totalSpent = (updated[existingIdx].quantity * updated[existingIdx].averagePrice) + (b3Item.quantity * b3Item.averagePrice);
-          const newAvgPrice = newQty > 0 ? totalSpent / newQty : b3Item.averagePrice;
-          
+          const totalSpent = updated[existingIdx].quantity * updated[existingIdx].averagePrice + b3Item.quantity * costPrice;
+          const newAvgPrice = newQty > 0 ? totalSpent / newQty : costPrice;
+
           updated[existingIdx] = {
             ...updated[existingIdx],
             quantity: newQty,
             averagePrice: parseFloat(newAvgPrice.toFixed(2)),
-            currentPrice: simulatedCurrentPrice,
           };
         } else {
           updated.push({
@@ -130,14 +158,20 @@ export default function BrasilPage() {
             ticker: b3Item.ticker.toUpperCase(),
             category: b3Item.category as 'Ações' | 'FIIs' | 'Renda Fixa',
             quantity: b3Item.quantity,
-            averagePrice: b3Item.averagePrice,
-            currentPrice: simulatedCurrentPrice,
-            observacoes: b3Item.institution ? `Importado via B3 (${b3Item.institution})` : 'Importado via B3'
+            averagePrice: costPrice,
+            currentPrice: costPrice, // Temporary fallback until API returns
+            observacoes: b3Item.institution ? `Importado via B3 (${b3Item.institution})` : 'Importado via B3',
           });
         }
       });
+      updatedList = updated;
       return updated;
     });
+
+    // Trigger real-time price update from API
+    setTimeout(() => {
+      fetchRealTimePrices(updatedList);
+    }, 100);
   };
 
   // Asset Form fields
@@ -169,6 +203,13 @@ export default function BrasilPage() {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, []);
+
+  // Fetch real-time market prices whenever assets are added/updated
+  useEffect(() => {
+    if (assets.length > 0) {
+      fetchRealTimePrices(assets);
+    }
+  }, [assets.length]);
 
   // BRL Conversion Helpers for responsive currency toggle support 
   const convertBRLAmount = (amountBRL: number) => {

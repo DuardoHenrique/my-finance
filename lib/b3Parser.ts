@@ -6,6 +6,7 @@ export interface ExtractedB3Asset {
   name: string;
   category: 'Ações' | 'FIIs' | 'Renda Fixa';
   quantity: number;
+  buyPrice: number;
   averagePrice: number;
   totalValue: number;
   date?: string;
@@ -117,20 +118,30 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
       };
     }
 
-    // Identify position sheets and skip non-position sheets (proventos, histórico, negociação)
+    // Identify position sheets and skip non-position sheets (proventos, histórico, movimentações, operações)
     let validSheets = workbook.SheetNames.filter((sheetName) => {
-      const lower = sheetName.toLowerCase();
-      return !lower.includes('provento') &&
-             !lower.includes('rendimento') &&
-             !lower.includes('dividendo') &&
-             !lower.includes('jcp') &&
-             !lower.includes('histórico') &&
-             !lower.includes('historico') &&
-             !lower.includes('negociação') &&
-             !lower.includes('negociacao') &&
-             !lower.includes('movimentação') &&
-             !lower.includes('movimentacao') &&
-             !lower.includes('eventos');
+      const norm = sheetName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      return !norm.includes('provento') &&
+             !norm.includes('rendimento') &&
+             !norm.includes('dividendo') &&
+             !norm.includes('jcp') &&
+             !norm.includes('historico') &&
+             !norm.includes('negociac') &&
+             !norm.includes('movimentac') &&
+             !norm.includes('operac') &&
+             !norm.includes('compra') &&
+             !norm.includes('venda') &&
+             !norm.includes('extrato') &&
+             !norm.includes('evento') &&
+             !norm.includes('fluxo') &&
+             !norm.includes('history') &&
+             !norm.includes('transaction') &&
+             !norm.includes('trade') &&
+             !norm.includes('order');
     });
 
     // Fallback: If filtering removed all sheets, use all sheets
@@ -152,7 +163,8 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
         ticker: -1,
         name: -1,
         quantity: -1,
-        price: -1,
+        avgPrice: -1,
+        buyPrice: -1,
         total: -1,
         type: -1,
         date: -1,
@@ -162,6 +174,11 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
       for (let i = 0; i < Math.min(rows.length, 25); i++) {
         const row = rows[i];
         const rowStr = row.map(c => String(c).toLowerCase()).join(' | ');
+
+        // Skip transaction/operations header rows
+        if (rowStr.includes('tipo de operação') || rowStr.includes('tipo de operacao') || rowStr.includes('valor da operação') || rowStr.includes('valor da operacao') || rowStr.includes('taxas')) {
+          continue;
+        }
 
         if (
           rowStr.includes('código') || rowStr.includes('codigo') || rowStr.includes('produto') ||
@@ -173,19 +190,19 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
           row.forEach((cell, colIdx) => {
             const cStr = String(cell).toLowerCase().trim();
 
-            // Ticker: Prioritize exact 'código de negociação' or 'ticker', exclude ISIN
-            if (cStr === 'código de negociação' || cStr === 'codigo de negociacao' || cStr === 'ticker' || cStr === 'código do ativo') {
+            // Ticker: Prioritize exact 'código de negociação', 'ticker', 'código do ativo', or 'ativo'
+            if (cStr === 'código de negociação' || cStr === 'codigo de negociacao' || cStr === 'ticker' || cStr === 'código do ativo' || cStr === 'código' || cStr === 'codigo') {
               colIndices.ticker = colIdx;
-            } else if (colIndices.ticker === -1 && (cStr.includes('código') || cStr.includes('codigo') || cStr.includes('ticker')) && !cStr.includes('isin')) {
+            } else if (colIndices.ticker === -1 && (cStr === 'ativo' || cStr.includes('código') || cStr.includes('codigo') || cStr.includes('ticker')) && !cStr.includes('isin')) {
               colIndices.ticker = colIdx;
             }
 
             // Name
-            if (cStr.includes('produto') || cStr.includes('empresa') || cStr.includes('especificação') || cStr.includes('razão social') || cStr.includes('nome')) {
+            if (cStr.includes('produto') || cStr.includes('empresa') || cStr.includes('especificação') || cStr.includes('razão social') || cStr === 'nome' || cStr.includes('nome do ativo')) {
               if (colIndices.name === -1) colIndices.name = colIdx;
             }
 
-            // Quantity: Prioritize exact 'quantidade' or 'quantidade disponível', exclude 'indisponível' or 'bloqueada'
+            // Quantity
             if (cStr === 'quantidade' || cStr === 'qtd') {
               colIndices.quantity = colIdx;
             } else if (colIndices.quantity === -1 && cStr.includes('quantidade disponível')) {
@@ -194,15 +211,18 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
               colIndices.quantity = colIdx;
             }
 
-            // Price (Unit price or Closing price or Avg price)
-            if (cStr.includes('preço de fechamento') || cStr.includes('preco de fechamento') || cStr.includes('preço médio') || cStr.includes('preco medio') || cStr.includes('custo médio') || cStr.includes('custo de aquisição') || cStr.includes('valor unitario') || cStr.includes('preço unitário')) {
-              colIndices.price = colIdx;
-            } else if (colIndices.price === -1 && (cStr.includes('preço') || cStr.includes('preco') || cStr.includes('custo'))) {
-              colIndices.price = colIdx;
+            // Preço Médio (Prioritário para custo médio do investidor se presente)
+            if (cStr.includes('preço médio') || cStr.includes('preco medio') || cStr.includes('custo médio') || cStr.includes('custo medio') || cStr.includes('preço medio')) {
+              colIndices.avgPrice = colIdx;
             }
 
-            // Total Value
-            if (cStr.includes('valor atualizado') || cStr.includes('valor total') || cStr.includes('posição em r$') || cStr.includes('posicao em r$') || cStr.includes('valor atual')) {
+            // Preço de Compra (Custo unitário de aquisição)
+            if (cStr.includes('preço de compra') || cStr.includes('preco de compra') || cStr.includes('custo de aquisição') || cStr.includes('custo aquisicao') || cStr.includes('valor unitario') || cStr.includes('preço unitário') || cStr.includes('preco unitario')) {
+              colIndices.buyPrice = colIdx;
+            }
+
+            // Total Value (Apenas valor total de aplicação/custo se presente)
+            if (cStr.includes('valor investido') || cStr.includes('valor de aplicação') || cStr.includes('custo total')) {
               colIndices.total = colIdx;
             }
 
@@ -238,7 +258,11 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
         if (colIndices.ticker >= 0 && row[colIndices.ticker]) {
           const rawCell = String(row[colIndices.ticker]).trim();
           const match = rawCell.match(TICKER_REGEX);
-          if (match) ticker = match[1].toUpperCase();
+          if (match) {
+            ticker = match[1].toUpperCase();
+          } else if (rawCell.length > 0) {
+            ticker = rawCell;
+          }
         }
 
         // Extract name
@@ -267,12 +291,32 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
         if (colIndices.quantity >= 0 && row[colIndices.quantity] !== undefined) {
           quantity = cleanNumber(row[colIndices.quantity]);
         }
-        if (colIndices.price >= 0 && row[colIndices.price] !== undefined) {
-          price = cleanNumber(row[colIndices.price]);
+
+        let avgPriceVal = colIndices.avgPrice >= 0 && row[colIndices.avgPrice] !== undefined ? cleanNumber(row[colIndices.avgPrice]) : 0;
+        let buyPriceVal = colIndices.buyPrice >= 0 && row[colIndices.buyPrice] !== undefined ? cleanNumber(row[colIndices.buyPrice]) : 0;
+        let totalVal = colIndices.total >= 0 && row[colIndices.total] !== undefined ? cleanNumber(row[colIndices.total]) : 0;
+
+        let buyPrice = buyPriceVal > 0 ? buyPriceVal : avgPriceVal;
+        let averagePrice = avgPriceVal > 0 ? avgPriceVal : buyPriceVal;
+
+        // Effective cost price for total calculation (prioritize buyPrice if present)
+        let effectiveCostPrice = buyPrice > 0 ? buyPrice : averagePrice;
+
+        // Calculate total value: prioritize explicit totalVal column, or fallback to effectiveCostPrice * quantity
+        if (totalVal > 0) {
+          totalValue = totalVal;
+        } else if (effectiveCostPrice > 0 && quantity > 0) {
+          totalValue = effectiveCostPrice * quantity;
         }
-        if (colIndices.total >= 0 && row[colIndices.total] !== undefined) {
-          totalValue = cleanNumber(row[colIndices.total]);
+
+        // Auto-fix missing price or total if needed
+        if (buyPrice === 0 && totalValue > 0 && quantity > 0) {
+          buyPrice = totalValue / quantity;
         }
+        if (averagePrice === 0) {
+          averagePrice = buyPrice;
+        }
+
         if (colIndices.date >= 0 && row[colIndices.date]) {
           dateStr = String(row[colIndices.date]).trim();
         }
@@ -284,30 +328,23 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
           institution = String(row[colIndices.institution]).trim();
         }
 
-        // Auto-fix missing price or total
-        if (price === 0 && totalValue > 0 && quantity > 0) {
-          price = totalValue / quantity;
-        } else if (totalValue === 0 && price > 0 && quantity > 0) {
-          totalValue = price * quantity;
-        }
-
-        // Fix if totalValue was mistakenly put into price
-        if (quantity > 1 && price > 0 && totalValue > 0 && Math.abs(price - totalValue) < 0.01) {
-          price = totalValue / quantity;
-        }
-
         // Clean name
         const finalName = cleanName(name, ticker);
         const category = inferCategory(ticker, finalName, typeStr);
 
-        // Aggregate if duplicate ticker found in sheet
+        // Aggregate if duplicate ticker found in sheet, but guard against duplicate row/sheet reads
         if (assetsMap.has(ticker)) {
           const existing = assetsMap.get(ticker)!;
+          // If exact duplicate (same quantity and same price), skip to prevent double counting
+          if (existing.quantity === quantity && Math.abs(existing.buyPrice - buyPrice) < 0.01) {
+            continue;
+          }
           const newQty = existing.quantity + quantity;
           const newTotal = existing.totalValue + totalValue;
           existing.quantity = newQty;
-          existing.totalValue = newTotal;
-          existing.averagePrice = newQty > 0 ? parseFloat((newTotal / newQty).toFixed(2)) : existing.averagePrice;
+          existing.totalValue = parseFloat(newTotal.toFixed(2));
+          existing.buyPrice = newQty > 0 ? parseFloat((newTotal / newQty).toFixed(2)) : existing.buyPrice;
+          existing.averagePrice = averagePrice || existing.averagePrice;
         } else {
           assetsMap.set(ticker, {
             id: `b3-${ticker}-${Math.random().toString(36).substring(2, 7)}`,
@@ -315,7 +352,8 @@ export async function parseB3ExcelFile(file: File): Promise<B3ParseResult> {
             name: finalName,
             category,
             quantity: quantity,
-            averagePrice: parseFloat(price.toFixed(2)),
+            buyPrice: parseFloat(buyPrice.toFixed(2)),
+            averagePrice: parseFloat(averagePrice.toFixed(2)),
             totalValue: parseFloat(totalValue.toFixed(2)),
             date: dateStr,
             institution,

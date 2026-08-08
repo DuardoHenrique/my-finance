@@ -110,14 +110,19 @@ export async function parseInternationalExcelFile(file: File): Promise<Internati
 
     // Skip non-position sheets
     let validSheets = workbook.SheetNames.filter((sheetName) => {
-      const lower = sheetName.toLowerCase();
-      return !lower.includes('provento') &&
-             !lower.includes('dividend') &&
-             !lower.includes('histórico') &&
-             !lower.includes('historico') &&
-             !lower.includes('statement') &&
-             !lower.includes('transaction') &&
-             !lower.includes('activity');
+      const norm = sheetName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      return !norm.includes('provento') &&
+             !norm.includes('dividend') &&
+             !norm.includes('historico') &&
+             !norm.includes('statement') &&
+             !norm.includes('transaction') &&
+             !norm.includes('movimentac') &&
+             !norm.includes('operac') &&
+             !norm.includes('activity');
     });
 
     if (validSheets.length === 0) {
@@ -289,10 +294,13 @@ export async function parseInternationalExcelFile(file: File): Promise<Internati
 
         if (assetsMap.has(ticker)) {
           const existing = assetsMap.get(ticker)!;
+          if (existing.quantity === quantity && Math.abs(existing.averagePrice - avgPrice) < 0.01) {
+            continue;
+          }
           const newQty = existing.quantity + quantity;
           const newTotal = existing.totalValue + totalValue;
           existing.quantity = newQty;
-          existing.totalValue = newTotal;
+          existing.totalValue = parseFloat(newTotal.toFixed(2));
           existing.averagePrice = newQty > 0 ? parseFloat((newTotal / newQty).toFixed(2)) : existing.averagePrice;
           existing.currentPrice = currentPrice || existing.currentPrice;
         } else {

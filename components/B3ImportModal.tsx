@@ -68,10 +68,12 @@ export function B3ImportModal({ isOpen, onClose, onImportSuccess }: B3ImportModa
     setExtractedAssets(prev => prev.map(a => {
       if (a.id === id) {
         const updated = { ...a, [field]: value };
-        if (field === 'quantity' || field === 'averagePrice') {
+        if (field === 'quantity' || field === 'buyPrice' || field === 'averagePrice') {
           const qty = Number(field === 'quantity' ? value : updated.quantity);
-          const price = Number(field === 'averagePrice' ? value : updated.averagePrice);
-          updated.totalValue = Number((qty * price).toFixed(2));
+          const buyP = Number(field === 'buyPrice' ? value : updated.buyPrice);
+          const avgP = Number(field === 'averagePrice' ? value : updated.averagePrice);
+          const costP = buyP > 0 ? buyP : avgP;
+          updated.totalValue = Number((qty * costP).toFixed(2));
         }
         return updated;
       }
@@ -229,13 +231,14 @@ export function B3ImportModal({ isOpen, onClose, onImportSuccess }: B3ImportModa
                       <thead className="bg-[#161B22] text-white/50 border-b border-white/10 uppercase tracking-wider sticky top-0">
                         <tr>
                           <th className="p-3 w-10 text-center">#</th>
-                          <th className="p-3 w-28">Ticker</th>
+                          <th className="p-3 w-24">Ticker</th>
                           <th className="p-3">Empresa / Ativo</th>
-                          <th className="p-3 w-32">Categoria</th>
-                          <th className="p-3 w-28 text-right">Qtd</th>
-                          <th className="p-3 w-32 text-right">Preço Médio (R$)</th>
-                          <th className="p-3 w-36 text-right">Total (R$)</th>
-                          <th className="p-3 w-12 text-center"></th>
+                          <th className="p-3 w-28">Categoria</th>
+                          <th className="p-3 w-20 text-right">Qtd</th>
+                          <th className="p-3 w-28 text-right">Preço Compra (R$)</th>
+                          <th className="p-3 w-28 text-right">Preço Médio (R$)</th>
+                          <th className="p-3 w-32 text-right">Total Investido (R$)</th>
+                          <th className="p-3 w-10 text-center"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/10">
@@ -289,13 +292,22 @@ export function B3ImportModal({ isOpen, onClose, onImportSuccess }: B3ImportModa
                               <input 
                                 type="number"
                                 step="any"
+                                value={asset.buyPrice || asset.averagePrice}
+                                onChange={(e) => handleAssetFieldChange(asset.id, 'buyPrice', e.target.value)}
+                                className="w-full bg-transparent border-b border-transparent hover:border-white/20 focus:border-blue-500 text-right text-white outline-none font-mono text-amber-300 font-semibold"
+                              />
+                            </td>
+                            <td className="p-3 text-right">
+                              <input 
+                                type="number"
+                                step="any"
                                 value={asset.averagePrice}
                                 onChange={(e) => handleAssetFieldChange(asset.id, 'averagePrice', e.target.value)}
                                 className="w-full bg-transparent border-b border-transparent hover:border-white/20 focus:border-blue-500 text-right text-white outline-none font-mono"
                               />
                             </td>
                             <td className="p-3 text-right font-bold text-white">
-                              R$ {(asset.quantity * asset.averagePrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              R$ {asset.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                             <td className="p-3 text-center">
                               <button 
