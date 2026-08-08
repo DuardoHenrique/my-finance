@@ -2,8 +2,8 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import fs from 'fs/promises';
 import path from 'path';
+import { initPostgresDatabase } from './initDb';
 
-// Parse and strictly validate DATABASE_URL to avoid malformed connection failures
 const databaseUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
 const isValidPostgresUrl = typeof databaseUrl === 'string' && databaseUrl.startsWith('postgres');
 
@@ -11,6 +11,7 @@ export const db = isValidPostgresUrl ? drizzle({ client: neon(databaseUrl) }) : 
 
 export interface Asset {
   id: string;
+  userId?: string;
   name: string;
   ticker: string;
   quantity: string;
@@ -22,85 +23,184 @@ export interface Asset {
 
 const DATA_FILE_PATH = path.join(process.cwd(), 'lib', 'db', 'data.json');
 
-const INITIAL_ASSETS: Asset[] = [];
+let dbInitialized = false;
 
-async function ensureDataFile() {
-  try {
-    await fs.access(DATA_FILE_PATH);
-  } catch {
-    // File doesn't exist, create it with initial seed assets
-    await fs.mkdir(path.dirname(DATA_FILE_PATH), { recursive: true });
-    await fs.writeFile(DATA_FILE_PATH, JSON.stringify(INITIAL_ASSETS, null, 2), 'utf8');
+async function checkAndInitDb() {
+  if (!dbInitialized && isValidPostgresUrl) {
+    dbInitialized = true;
+    await initPostgresDatabase();
   }
 }
 
-export async function getAssets(portfolio?: 'brasil' | 'internacional' | 'cripto' | 'all') {
-  await ensureDataFile();
+export async function getAssets(portfolio?: 'brasil' | 'internacional' | 'cripto' | 'all', userId?: string): Promise<Asset[]> {
+  await checkAndInitDb();
+
+  if (isValidPostgresUrl) {
+    try {
+      const sql = neon(databaseUrl!);
+      let rows: any[] = [];
+
+      if (userId && portfolio && portfolio !== 'all') {
+        rows = await sql`
+          SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio 
+          FROM assets 
+          WHERE user_id = ${userId} AND portfolio = ${portfolio}
+        `;
+      } else if (userId) {
+        rows = await sql`
+          SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio 
+          FROM assets 
+          WHERE user_id = ${userId}
+        `;
+      } else if (portfolio && portfolio !== 'all') {
+        rows = await sql`
+          SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio 
+          FROM assets 
+          WHERE portfolio = ${portfolio}
+        `;
+      } else {
+        rows = await sql`
+          SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio 
+          FROM assets
+        `;
+      }
+
+      return rows as Asset[];
+    } catch (err) {
+      console.error('PostgreSQL getAssets error, falling back to JSON:', err);
+    }
+  }
+
+  // Fallback to local JSON file
   try {
     const data = await fs.readFile(DATA_FILE_PATH, 'utf8');
-    const assets: Asset[] = JSON.parse(data);
+    let assets: Asset[] = JSON.parse(data);
+    
+    if (userId) {
+      assets = assets.filter((asset) => asset.userId === userId);
+    }
+    
     if (!portfolio || portfolio === 'all') {
       return assets;
     }
     return assets.filter((asset) => asset.portfolio === portfolio);
   } catch (error) {
-    console.error('Failed to read assets database:', error);
     return [];
   }
 }
 
-export async function addAsset(assetData: Omit<Asset, 'id'>) {
-  await ensureDataFile();
+export async function addAsset(assetData: Omit<Asset, 'id'>): Promise<Asset> {
+  await checkAndInitDb();
+
+  const newId = `ast_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+  const newAsset: Asset = {
+    ...assetData,
+    id: newId,
+  };
+
+  if (isValidPostgresUrl) {
+    try {
+      const sql = neon(databaseUrl!);
+      await sql`
+        INSERT INTO assets (id, user_id, name, ticker, quantity, average_price, currency, category, portfolio)
+        VALUES (${newAsset.id}, ${newAsset.userId || null}, ${newAsset.name}, ${newAsset.ticker}, ${newAsset.quantity}, ${newAsset.averagePrice}, ${newAsset.currency}, ${newAsset.category}, ${newAsset.portfolio});
+      `;
+      return newAsset;
+    } catch (err) {
+      console.error('PostgreSQL addAsset error, falling back to JSON:', err);
+    }
+  }
+
+  // Fallback to JSON
   try {
     const data = await fs.readFile(DATA_FILE_PATH, 'utf8');
     const assets: Asset[] = JSON.parse(data);
-    const newAsset: Asset = {
-      ...assetData,
-      id: Math.random().toString(36).substring(2, 9),
-    };
     assets.push(newAsset);
     await fs.writeFile(DATA_FILE_PATH, JSON.stringify(assets, null, 2), 'utf8');
     return newAsset;
   } catch (error) {
-    console.error('Failed to add asset:', error);
     throw new Error('Could not add asset to database');
   }
 }
 
-export async function updateAsset(id: string, assetData: Partial<Omit<Asset, 'id'>>) {
-  await ensureDataFile();
-  try {
-    const data = await fs.readFile(DATA_FILE_PATH, 'utf8');
-    let assets: Asset[] = JSON.parse(data);
-    let updatedAsset: Asset | null = null;
-    assets = assets.map((asset) => {
-      if (asset.id === id) {
-        updatedAsset = { ...asset, ...assetData };
-        return updatedAsset;
-      }
-      return asset;
-    });
-    if (!updatedAsset) {
-      throw new Error('Asset not found');
+export async function updateAsset(id: string, assetData: Partial<Omit<Asset, 'id'>>): Promise<Asset> {
+  await checkAndInitDb();
+
+  if (isValidPostgresUrl) {
+    try {
+      const sql = neon(databaseUrl!);
+      const existing = await sql`
+        SELECT id, user_id as "userId", name, ticker, quantity, average_price as "averagePrice", currency, category, portfolio 
+        FROM assets WHERE id = ${id}
+      `;
+      if (existing.length === 0) throw new Error('Asset not found');
+
+      const current = existing[0];
+      const updated = {
+        name: assetData.name ?? current.name,
+        ticker: assetData.ticker ?? current.ticker,
+        quantity: assetData.quantity ?? current.quantity,
+        averagePrice: assetData.averagePrice ?? current.averagePrice,
+        currency: assetData.currency ?? current.currency,
+        category: assetData.category ?? current.category,
+        portfolio: assetData.portfolio ?? current.portfolio,
+      };
+
+      await sql`
+        UPDATE assets 
+        SET name = ${updated.name}, 
+            ticker = ${updated.ticker}, 
+            quantity = ${updated.quantity}, 
+            average_price = ${updated.averagePrice}, 
+            currency = ${updated.currency}, 
+            category = ${updated.category}, 
+            portfolio = ${updated.portfolio}
+        WHERE id = ${id};
+      `;
+
+      return {
+        id,
+        userId: current.userId,
+        ...updated,
+      } as Asset;
+    } catch (err) {
+      console.error('PostgreSQL updateAsset error:', err);
     }
-    await fs.writeFile(DATA_FILE_PATH, JSON.stringify(assets, null, 2), 'utf8');
-    return updatedAsset;
-  } catch (error) {
-    console.error('Failed to update asset:', error);
-    throw new Error('Could not update asset in database');
   }
+
+  // Fallback to JSON
+  const data = await fs.readFile(DATA_FILE_PATH, 'utf8');
+  let assets: Asset[] = JSON.parse(data);
+  let updatedAsset: Asset | null = null;
+  assets = assets.map((asset) => {
+    if (asset.id === id) {
+      updatedAsset = { ...asset, ...assetData };
+      return updatedAsset;
+    }
+    return asset;
+  });
+  if (!updatedAsset) throw new Error('Asset not found');
+  await fs.writeFile(DATA_FILE_PATH, JSON.stringify(assets, null, 2), 'utf8');
+  return updatedAsset;
 }
 
 export async function deleteAsset(id: string) {
-  await ensureDataFile();
-  try {
-    const data = await fs.readFile(DATA_FILE_PATH, 'utf8');
-    const assets: Asset[] = JSON.parse(data);
-    const filteredAssets = assets.filter((asset) => asset.id !== id);
-    await fs.writeFile(DATA_FILE_PATH, JSON.stringify(filteredAssets, null, 2), 'utf8');
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to delete asset:', error);
-    throw new Error('Could not delete asset from database');
+  await checkAndInitDb();
+
+  if (isValidPostgresUrl) {
+    try {
+      const sql = neon(databaseUrl!);
+      await sql`DELETE FROM assets WHERE id = ${id}`;
+      return { success: true };
+    } catch (err) {
+      console.error('PostgreSQL deleteAsset error:', err);
+    }
   }
+
+  // Fallback to JSON
+  const data = await fs.readFile(DATA_FILE_PATH, 'utf8');
+  const assets: Asset[] = JSON.parse(data);
+  const filteredAssets = assets.filter((asset) => asset.id !== id);
+  await fs.writeFile(DATA_FILE_PATH, JSON.stringify(filteredAssets, null, 2), 'utf8');
+  return { success: true };
 }

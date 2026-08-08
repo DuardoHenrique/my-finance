@@ -41,7 +41,7 @@ export function PortfolioDashboard({
 
   const handleB3ImportSuccess = async (importedB3Assets: any[]) => {
     for (const item of importedB3Assets) {
-      const assetData = {
+      const assetData: Omit<Asset, 'id'> = {
         name: item.name,
         ticker: item.ticker,
         quantity: item.quantity.toString(),
@@ -213,8 +213,14 @@ export function PortfolioDashboard({
           <div>
             <div className="text-xs text-white/50 mb-1 uppercase tracking-wider font-bold">Retorno Geral (Anualizado)</div>
             <div className="text-2xl font-mono text-brand-accent font-semibold flex items-center gap-1">
-              <TrendingUp className="w-5 h-5 text-green-500" />
-              +14.8%
+              {assets.length > 0 ? (
+                <>
+                  <TrendingUp className="w-5 h-5 text-green-500" />
+                  +14.8%
+                </>
+              ) : (
+                <span className="text-white/30">-</span>
+              )}
             </div>
           </div>
         </div>

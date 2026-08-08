@@ -1,11 +1,41 @@
 'use client';
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
-import { Home, Wallet, Globe, Settings, Bitcoin, Activity } from 'lucide-react';
+import { Home, Wallet, Globe, Bitcoin, Activity, LogOut } from 'lucide-react';
+import { SessionUser } from '@/lib/auth';
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [user, setUser] = useState<SessionUser | null>(null);
+
+  useEffect(() => {
+    if (pathname !== '/login') {
+      fetch('/api/auth/me')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.user) {
+            setUser(data.user);
+          }
+        })
+        .catch((err) => console.error('Failed to fetch session user', err));
+    }
+  }, [pathname]);
+
+  if (pathname === '/login') {
+    return null;
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const links = [
     { href: '/', label: 'Overview', icon: Home },
@@ -47,10 +77,29 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="p-6">
-          <button className="flex items-center gap-3 px-3 py-2.5 w-full rounded-xl text-sm text-white/50 hover:bg-white/[0.04] hover:text-white border border-transparent transition-all duration-300 font-medium group">
-            <Settings className="w-4 h-4 shrink-0 transition-transform duration-300 group-hover:rotate-45" />
-            Settings
+        {/* User profile & Logout footer */}
+        <div className="p-4 border-t border-white/5 space-y-3">
+          {user && (
+            <div className="flex items-center gap-3 px-2 py-1">
+              <div className="w-8 h-8 rounded-full bg-brand-accent/20 border border-brand-accent/30 flex items-center justify-center text-brand-accent font-bold text-xs uppercase shrink-0">
+                {user.name.charAt(0)}
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs font-semibold text-white truncate">{user.name}</span>
+                <span className="text-[10px] text-white/40 truncate">{user.email}</span>
+              </div>
+            </div>
+          )}
+          
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center justify-between w-full px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all duration-200 font-semibold cursor-pointer group"
+          >
+            <div className="flex items-center gap-2">
+              <LogOut className="w-4 h-4 shrink-0 transition-transform group-hover:-translate-x-0.5" />
+              <span>Sair da conta</span>
+            </div>
           </button>
         </div>
       </aside>

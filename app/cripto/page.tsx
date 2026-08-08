@@ -429,10 +429,12 @@ export default function CriptoPage() {
             <div className="text-4xl font-bold heading-display mb-1 font-mono">
               {formatAmount(metrics.totalCriptoUSD)}
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-mono text-green-500 font-semibold pt-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>+5.8% este mês</span>
-            </div>
+            {metrics.totalCriptoUSD > 0 && (
+              <div className="flex items-center gap-1.5 text-xs font-mono text-green-500 font-semibold pt-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>+5.8% este mês</span>
+              </div>
+            )}
           </div>
           <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f97316]" />
         </div>

@@ -127,10 +127,12 @@ export default function DashboardClientPage() {
               formatAmount(totalPortfolioUSD)
             )}
           </div>
-          <div className="flex items-center gap-1.5 text-brand-accent text-xs font-mono font-semibold">
-            <TrendingUp className="w-4 h-4 text-green-500" />
-            <span className="text-green-500 font-bold">+2.8%</span> este mês
-          </div>
+          {totalPortfolioUSD > 0 && (
+            <div className="flex items-center gap-1.5 text-brand-accent text-xs font-mono font-semibold">
+              <TrendingUp className="w-4 h-4 text-green-500" />
+              <span className="text-green-500 font-bold">+2.8%</span> este mês
+            </div>
+          )}
         </div>
       </div>
 
@@ -158,7 +160,11 @@ export default function DashboardClientPage() {
                 )}
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-green-500 font-semibold">+1.2% hoje</span>
+                {brasilUSD > 0 ? (
+                  <span className="text-green-500 font-semibold">+1.2% hoje</span>
+                ) : (
+                  <span className="text-white/30 font-semibold">-</span>
+                )}
                 <span className="text-white/50">{pctBrasil.toFixed(1)}% do portfólio</span>
               </div>
             </div>
@@ -194,7 +200,11 @@ export default function DashboardClientPage() {
                 )}
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-red-400 font-semibold">-0.5% hoje</span>
+                {internacionalUSD > 0 ? (
+                  <span className="text-red-400 font-semibold">-0.5% hoje</span>
+                ) : (
+                  <span className="text-white/30 font-semibold">-</span>
+                )}
                 <span className="text-white/50">{pctIntl.toFixed(1)}% do portfólio</span>
               </div>
             </div>
@@ -230,7 +240,11 @@ export default function DashboardClientPage() {
                 )}
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-green-500 font-semibold">+5.4% hoje</span>
+                {criptoUSD > 0 ? (
+                  <span className="text-green-500 font-semibold">+5.4% hoje</span>
+                ) : (
+                  <span className="text-white/30 font-semibold">-</span>
+                )}
                 <span className="text-white/50">{pctCripto.toFixed(1)}% do portfólio</span>
               </div>
             </div>
