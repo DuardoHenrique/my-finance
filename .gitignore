@@ -6,3 +6,16 @@ coverage/
 .env*
 !.env.example
 *.tsbuildinfo
+
+# Relatórios e planilhas de exemplo
+*.xlsx
+
+# Banco de dados local em desenvolvimento
+lib/db/data.json
+lib/db/users.json
+
+# Pastas de agentes, relatórios internos e configurações de IDE
+.agents/
+security_best_practices_report.md
+.vscode/
+.idea/
