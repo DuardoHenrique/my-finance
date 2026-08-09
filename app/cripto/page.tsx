@@ -118,6 +118,76 @@ export default function CriptoPage() {
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
+  const persistAssets = async (assetsList: Asset[]) => {
+    try {
+      await fetch('/api/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolio: 'cripto', assets: assetsList })
+      });
+    } catch (err) {
+      console.error('Failed to persist cripto assets:', err);
+    }
+  };
+
+  const persistTransactions = async (txList: Transaction[]) => {
+    try {
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolio: 'cripto', transactions: txList })
+      });
+    } catch (err) {
+      console.error('Failed to persist cripto transactions:', err);
+    }
+  };
+
+  // Initial load from backend API
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const [assetsRes, txRes] = await Promise.all([
+          fetch('/api/assets?portfolio=cripto'),
+          fetch('/api/transactions?portfolio=cripto')
+        ]);
+        if (assetsRes.ok) {
+          const data = await assetsRes.json();
+          if (data.assets && Array.isArray(data.assets)) {
+            const mappedAssets: Asset[] = data.assets.map((a: any) => ({
+              id: a.id,
+              name: a.name,
+              ticker: a.ticker,
+              category: a.category as 'BTC' | 'Altcoin',
+              quantity: Number(a.quantity),
+              averagePrice: Number(a.averagePrice),
+              currentPrice: typeof a.currentPrice === 'number' ? a.currentPrice : Number(a.averagePrice),
+              observacoes: a.observacoes || ''
+            }));
+            setAssets(mappedAssets);
+          }
+        }
+        if (txRes.ok) {
+          const data = await txRes.json();
+          if (data.transactions && Array.isArray(data.transactions)) {
+            const mappedTx: Transaction[] = data.transactions.map((t: any) => ({
+              id: t.id,
+              ticker: t.ticker,
+              type: t.type,
+              quantity: Number(t.quantity),
+              unitPriceUSD: Number(t.unitPriceUSD),
+              date: t.date,
+              observacoes: t.observacoes || ''
+            }));
+            setTransactions(mappedTx);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial Cripto data:', err);
+      }
+    }
+    loadInitialData();
+  }, []);
+
   // Forms
   const [assetForm, setAssetForm] = useState({
     name: '',
@@ -215,7 +285,9 @@ export default function CriptoPage() {
 
   const handleDeleteAsset = (id: string, ticker: string) => {
     if (confirm(`Tem certeza que deseja excluir a posição em ${ticker}?`)) {
-      setAssets((prev) => prev.filter((a) => a.id !== id));
+      const nextAssets = assets.filter((a) => a.id !== id);
+      setAssets(nextAssets);
+      persistAssets(nextAssets);
     }
   };
 
@@ -229,20 +301,20 @@ export default function CriptoPage() {
       return;
     }
 
+    let updatedList: Asset[] = [];
+
     if (isBTCModal) {
       const existingBTC = assets.find((a) => a.ticker === 'BTC');
       if (existingBTC) {
-        setAssets((prev) =>
-          prev.map((a) =>
-            a.id === existingBTC.id
-              ? {
-                  ...a,
-                  quantity: qty,
-                  averagePrice: avgPrice,
-                  observacoes: assetForm.observacoes.trim()
-                }
-              : a
-          )
+        updatedList = assets.map((a) =>
+          a.id === existingBTC.id
+            ? {
+                ...a,
+                quantity: qty,
+                averagePrice: avgPrice,
+                observacoes: assetForm.observacoes.trim()
+              }
+            : a
         );
       } else {
         const newBTC: Asset = {
@@ -255,7 +327,7 @@ export default function CriptoPage() {
           currentPrice: 65200.00,
           observacoes: assetForm.observacoes.trim()
         };
-        setAssets((prev) => [...prev, newBTC]);
+        updatedList = [...assets, newBTC];
       }
     } else {
       if (!assetForm.name.trim() || !assetForm.ticker.trim()) {
@@ -265,19 +337,17 @@ export default function CriptoPage() {
       const tickerUpper = assetForm.ticker.trim().toUpperCase();
 
       if (editingAsset) {
-        setAssets((prev) =>
-          prev.map((a) =>
-            a.id === editingAsset.id
-              ? {
-                  ...a,
-                  name: assetForm.name.trim(),
-                  ticker: tickerUpper,
-                  quantity: qty,
-                  averagePrice: avgPrice,
-                  observacoes: assetForm.observacoes.trim()
-                }
-              : a
-          )
+        updatedList = assets.map((a) =>
+          a.id === editingAsset.id
+            ? {
+                ...a,
+                name: assetForm.name.trim(),
+                ticker: tickerUpper,
+                quantity: qty,
+                averagePrice: avgPrice,
+                observacoes: assetForm.observacoes.trim()
+              }
+            : a
         );
       } else {
         const simulatedCurrentPrice = avgPrice * (1 + (Math.random() * 0.4 - 0.1));
@@ -291,10 +361,12 @@ export default function CriptoPage() {
           currentPrice: parseFloat(simulatedCurrentPrice.toFixed(2)),
           observacoes: assetForm.observacoes.trim()
         };
-        setAssets((prev) => [...prev, newAsset]);
+        updatedList = [...assets, newAsset];
       }
     }
 
+    setAssets(updatedList);
+    persistAssets(updatedList);
     setShowAssetModal(false);
   };
 
@@ -314,7 +386,9 @@ export default function CriptoPage() {
 
   const handleDeleteTx = (id: string) => {
     if (confirm('Deseja excluir este lançamento de transação?')) {
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
+      const nextTx = transactions.filter((t) => t.id !== id);
+      setTransactions(nextTx);
+      persistTransactions(nextTx);
     }
   };
 
@@ -345,12 +419,15 @@ export default function CriptoPage() {
       observacoes: txForm.observacoes.trim()
     };
 
+    let updatedTx: Transaction[] = [];
     if (editingTx) {
-      setTransactions((prev) => prev.map((t) => (t.id === editingTx.id ? newTx : t)));
+      updatedTx = transactions.map((t) => (t.id === editingTx.id ? newTx : t));
     } else {
-      setTransactions((prev) => [newTx, ...prev]);
+      updatedTx = [newTx, ...transactions];
     }
 
+    setTransactions(updatedTx);
+    persistTransactions(updatedTx);
     setShowTxModal(false);
   };
 

@@ -16,8 +16,9 @@ export interface PortfolioMetrics {
  * @param exchangeRate Current USD/BRL exchange rate (e.g. 5.75 means 1 USD = 5.75 BRL)
  */
 export function calculateAssetUSDValue(asset: Asset, exchangeRate: number): number {
-  const qty = parseFloat(asset.quantity) || 0;
-  const price = parseFloat(asset.averagePrice) || 0;
+  const qty = Number(asset.quantity) || 0;
+  const currentP = typeof asset.currentPrice === 'number' && asset.currentPrice > 0 ? asset.currentPrice : null;
+  const price = currentP ?? (Number(asset.averagePrice) || 0);
   const nativeValue = qty * price;
   const assetCurrency = asset.currency || (asset.portfolio === 'brasil' ? 'BRL' : 'USD');
 

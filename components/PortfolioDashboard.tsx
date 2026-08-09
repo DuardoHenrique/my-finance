@@ -86,8 +86,8 @@ export function PortfolioDashboard({
     setEditingAsset(asset);
     setName(asset.name);
     setTicker(asset.ticker);
-    setQuantity(asset.quantity);
-    setAveragePrice(asset.averagePrice);
+    setQuantity(String(asset.quantity));
+    setAveragePrice(String(asset.averagePrice));
     setCategory(asset.category);
     setIsModalOpen(true);
   };
@@ -139,7 +139,7 @@ export function PortfolioDashboard({
 
   // Calculations
   const totalValue = assets.reduce(
-    (acc, a) => acc + (parseFloat(a.quantity) * parseFloat(a.averagePrice)), 
+    (acc, a) => acc + (Number(a.quantity) * Number(a.averagePrice)), 
     0
   );
 
@@ -152,7 +152,7 @@ export function PortfolioDashboard({
   // Pie Chart calculations
   const categoryTotals: Record<string, number> = {};
   assets.forEach((a) => {
-    categoryTotals[a.category] = (categoryTotals[a.category] || 0) + (parseFloat(a.quantity) * parseFloat(a.averagePrice));
+    categoryTotals[a.category] = (categoryTotals[a.category] || 0) + (Number(a.quantity) * Number(a.averagePrice));
   });
 
   const chartColors = ['#238636', '#1f6feb', '#bf8700', '#8b5cf6', '#ec4899'];
@@ -247,8 +247,8 @@ export function PortfolioDashboard({
               </thead>
               <tbody className="divide-y divide-white/10">
                 {assets.map((asset) => {
-                  const qty = parseFloat(asset.quantity);
-                  const price = parseFloat(asset.averagePrice);
+                  const qty = Number(asset.quantity);
+                  const price = Number(asset.averagePrice);
                   const total = qty * price;
                   return (
                     <tr key={asset.id} className="hover:bg-[#161B22] transition-colors">

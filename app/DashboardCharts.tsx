@@ -42,7 +42,8 @@ export function AllocationChart({ assets }: { assets: ChartAsset[] }) {
 
   assets.forEach((a) => {
     const qty = parseFloat(a.quantity) || 0;
-    const price = parseFloat(a.averagePrice) || 0;
+    const currentP = typeof (a as any).currentPrice === 'number' && (a as any).currentPrice > 0 ? (a as any).currentPrice : null;
+    const price = currentP ?? (parseFloat(a.averagePrice) || 0);
     const nativeVal = qty * price;
     const assetCurrency = a.currency || (a.portfolio === 'brasil' ? 'BRL' : 'USD');
 

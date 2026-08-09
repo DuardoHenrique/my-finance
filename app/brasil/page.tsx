@@ -105,6 +105,78 @@ export default function BrasilPage() {
 
   const [showB3Modal, setShowB3Modal] = useState(false);
 
+  const persistAssets = async (assetsList: Asset[]) => {
+    try {
+      await fetch('/api/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolio: 'brasil', assets: assetsList })
+      });
+    } catch (err) {
+      console.error('Failed to persist brasil assets:', err);
+    }
+  };
+
+  const persistProventos = async (proventosList: Provento[]) => {
+    try {
+      await fetch('/api/dividends', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolio: 'brasil', dividends: proventosList })
+      });
+    } catch (err) {
+      console.error('Failed to persist brasil proventos:', err);
+    }
+  };
+
+  // Initial load from backend API
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const [assetsRes, proventosRes] = await Promise.all([
+          fetch('/api/assets?portfolio=brasil'),
+          fetch('/api/dividends?portfolio=brasil')
+        ]);
+        if (assetsRes.ok) {
+          const data = await assetsRes.json();
+          if (data.assets && Array.isArray(data.assets)) {
+            const mappedAssets: Asset[] = data.assets.map((a: any) => ({
+              id: a.id,
+              name: a.name,
+              ticker: a.ticker,
+              category: a.category,
+              quantity: Number(a.quantity),
+              averagePrice: Number(a.averagePrice),
+              currentPrice: typeof a.currentPrice === 'number' ? a.currentPrice : Number(a.averagePrice),
+              observacoes: a.observacoes || ''
+            }));
+            setAssets(mappedAssets);
+            if (mappedAssets.length > 0) {
+              fetchRealTimePrices(mappedAssets);
+            }
+          }
+        }
+        if (proventosRes.ok) {
+          const data = await proventosRes.json();
+          if (data.dividends && Array.isArray(data.dividends)) {
+            const mappedProventos: Provento[] = data.dividends.map((d: any) => ({
+              id: d.id,
+              ticker: d.ticker,
+              type: d.type || 'Dividendo',
+              amountBRL: Number(d.amount),
+              date: d.date,
+              observacoes: d.observacoes || ''
+            }));
+            setProventos(mappedProventos);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial Brasil data:', err);
+      }
+    }
+    loadInitialData();
+  }, []);
+
   const fetchRealTimePrices = async (assetsToUpdate: Asset[]) => {
     const tickersToFetch = assetsToUpdate
       .map((a) => a.ticker)
@@ -118,15 +190,21 @@ export default function BrasilPage() {
       const data = await res.json();
       const priceMap: Record<string, number> = data.prices || {};
 
-      setAssets((prev) =>
-        prev.map((asset) => {
+      let updatedWithPrices: Asset[] = [];
+      setAssets((prev) => {
+        updatedWithPrices = prev.map((asset) => {
           const fetchedPrice = priceMap[asset.ticker.toUpperCase()];
           if (fetchedPrice && fetchedPrice > 0) {
             return { ...asset, currentPrice: fetchedPrice };
           }
           return asset;
-        })
-      );
+        });
+        return updatedWithPrices;
+      });
+
+      if (updatedWithPrices.length > 0) {
+        persistAssets(updatedWithPrices);
+      }
     } catch (err) {
       console.error('Error fetching real-time prices:', err);
     }
@@ -167,6 +245,8 @@ export default function BrasilPage() {
       updatedList = updated;
       return updated;
     });
+
+    persistAssets(updatedList);
 
     // Trigger real-time price update from API
     setTimeout(() => {
@@ -299,9 +379,12 @@ export default function BrasilPage() {
   // Handle Delete Asset
   const handleDeleteAsset = (id: string, ticker: string) => {
     if (confirm(`Tem certeza que deseja excluir o ativo ${ticker}?`)) {
-      setAssets(assets.filter((a) => a.id !== id));
-      // Optionally clean up proventos associated with this ticker
-      setProventos(proventos.filter((d) => d.ticker !== ticker));
+      const nextAssets = assets.filter((a) => a.id !== id);
+      const nextProventos = proventos.filter((d) => d.ticker !== ticker);
+      setAssets(nextAssets);
+      setProventos(nextProventos);
+      persistAssets(nextAssets);
+      persistProventos(nextProventos);
     }
   };
 
@@ -322,28 +405,26 @@ export default function BrasilPage() {
     }
 
     const tickerUpper = assetForm.ticker.trim().toUpperCase();
+    let updatedList: Asset[] = [];
 
     if (editingAsset) {
       // Edit
-      setAssets(
-        assets.map((a) =>
-          a.id === editingAsset.id
-            ? {
-                ...a,
-                name: assetForm.name.trim(),
-                ticker: tickerUpper,
-                category: assetForm.category,
-                quantity: qty,
-                averagePrice: avgPrice,
-                observacoes: assetForm.observacoes.trim()
-              }
-            : a
-        )
+      updatedList = assets.map((a) =>
+        a.id === editingAsset.id
+          ? {
+              ...a,
+              name: assetForm.name.trim(),
+              ticker: tickerUpper,
+              category: assetForm.category,
+              quantity: qty,
+              averagePrice: avgPrice,
+              observacoes: assetForm.observacoes.trim()
+            }
+          : a
       );
     } else {
       // Add new
-      // Generate simulated current price close to average price for realistic behavior
-      const simulatedCurrentPrice = avgPrice * (1 + (Math.random() * 0.3 - 0.05)); // -5% to +25%
+      const simulatedCurrentPrice = avgPrice * (1 + (Math.random() * 0.3 - 0.05));
       const newAsset: Asset = {
         id: Math.random().toString(36).substring(2, 9),
         name: assetForm.name.trim(),
@@ -354,9 +435,11 @@ export default function BrasilPage() {
         currentPrice: parseFloat(simulatedCurrentPrice.toFixed(2)),
         observacoes: assetForm.observacoes.trim()
       };
-      setAssets([...assets, newAsset]);
+      updatedList = [...assets, newAsset];
     }
 
+    setAssets(updatedList);
+    persistAssets(updatedList);
     setShowAssetModal(false);
   };
 
@@ -391,14 +474,18 @@ export default function BrasilPage() {
       observacoes: proventoForm.observacoes.trim()
     };
 
-    setProventos([newProv, ...proventos]);
+    const updated = [newProv, ...proventos];
+    setProventos(updated);
+    persistProventos(updated);
     setShowProventoModal(false);
   };
 
   // Delete Provento receipt
   const handleDeleteProvento = (id: string) => {
     if (confirm('Deseja excluir esse lançamento de provento?')) {
-      setProventos(proventos.filter((d) => d.id !== id));
+      const updated = proventos.filter((d) => d.id !== id);
+      setProventos(updated);
+      persistProventos(updated);
     }
   };
 

@@ -13,6 +13,8 @@ coverage/
 # Banco de dados local em desenvolvimento
 lib/db/data.json
 lib/db/users.json
+lib/db/dividends.json
+lib/db/transactions.json
 
 # Pastas de agentes, relatórios internos e configurações de IDE
 .agents/

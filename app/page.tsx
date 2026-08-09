@@ -13,6 +13,7 @@ interface Asset {
   ticker: string;
   quantity: string;
   averagePrice: string;
+  currentPrice?: number;
   currency: 'BRL' | 'USD';
   category: string;
   portfolio: 'brasil' | 'internacional' | 'cripto';
@@ -30,7 +31,35 @@ export default function DashboardClientPage() {
         if (res.ok) {
           const data = await res.json();
           if (data && data.assets) {
-            setAssets(data.assets);
+            const rawAssets: Asset[] = data.assets;
+            setAssets(rawAssets);
+
+            // Fetch live B3 prices for Brasil portfolio assets
+            const brasilTickers = rawAssets
+              .filter((a) => a.portfolio === 'brasil' && a.ticker && !a.ticker.toUpperCase().startsWith('CDB') && !a.ticker.toUpperCase().startsWith('TESOURO') && !a.ticker.toUpperCase().includes('CDI'))
+              .map((a) => a.ticker);
+
+            if (brasilTickers.length > 0) {
+              try {
+                const pricesRes = await fetch(`/api/prices/b3?tickers=${encodeURIComponent(brasilTickers.join(','))}`);
+                if (pricesRes.ok) {
+                  const pricesData = await pricesRes.json();
+                  const priceMap: Record<string, number> = pricesData.prices || {};
+
+                  setAssets((prev) =>
+                    prev.map((asset) => {
+                      const fetchedPrice = priceMap[asset.ticker.toUpperCase()];
+                      if (fetchedPrice && fetchedPrice > 0) {
+                        return { ...asset, currentPrice: fetchedPrice };
+                      }
+                      return asset;
+                    })
+                  );
+                }
+              } catch (e) {
+                console.error('Error fetching live prices for Overview:', e);
+              }
+            }
           }
         }
       } catch (err) {

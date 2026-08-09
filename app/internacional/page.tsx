@@ -108,6 +108,74 @@ export default function InternacionalPage() {
   const [showDividendModal, setShowDividendModal] = useState(false);
   const [selectedTickerForDividend, setSelectedTickerForDividend] = useState('');
 
+  const persistAssets = async (assetsList: Asset[]) => {
+    try {
+      await fetch('/api/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolio: 'internacional', assets: assetsList })
+      });
+    } catch (err) {
+      console.error('Failed to persist internacional assets:', err);
+    }
+  };
+
+  const persistDividends = async (dividendsList: Dividend[]) => {
+    try {
+      await fetch('/api/dividends', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolio: 'internacional', dividends: dividendsList })
+      });
+    } catch (err) {
+      console.error('Failed to persist internacional dividends:', err);
+    }
+  };
+
+  // Initial load from backend API
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const [assetsRes, dividendsRes] = await Promise.all([
+          fetch('/api/assets?portfolio=internacional'),
+          fetch('/api/dividends?portfolio=internacional')
+        ]);
+        if (assetsRes.ok) {
+          const data = await assetsRes.json();
+          if (data.assets && Array.isArray(data.assets)) {
+            const mappedAssets: Asset[] = data.assets.map((a: any) => ({
+              id: a.id,
+              name: a.name,
+              ticker: a.ticker,
+              category: a.category,
+              quantity: Number(a.quantity),
+              averagePrice: Number(a.averagePrice),
+              currentPrice: typeof a.currentPrice === 'number' ? a.currentPrice : Number(a.averagePrice),
+              observacoes: a.observacoes || ''
+            }));
+            setAssets(mappedAssets);
+          }
+        }
+        if (dividendsRes.ok) {
+          const data = await dividendsRes.json();
+          if (data.dividends && Array.isArray(data.dividends)) {
+            const mappedDividends: Dividend[] = data.dividends.map((d: any) => ({
+              id: d.id,
+              ticker: d.ticker,
+              amountUSD: Number(d.amount),
+              date: d.date,
+              observacoes: d.observacoes || ''
+            }));
+            setDividends(mappedDividends);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch initial Internacional data:', err);
+      }
+    }
+    loadInitialData();
+  }, []);
+
   // Asset Form fields
   const [assetForm, setAssetForm] = useState({
     name: '',
@@ -217,6 +285,7 @@ export default function InternacionalPage() {
       observacoes: imp.institution ? `Importado via Excel (${imp.institution})` : 'Importado via Excel'
     }));
 
+    let updatedList: Asset[] = [];
     setAssets(prev => {
       const map = new Map<string, Asset>();
       prev.forEach(a => map.set(a.ticker.toUpperCase(), a));
@@ -233,16 +302,22 @@ export default function InternacionalPage() {
           map.set(t, a);
         }
       });
-      return Array.from(map.values());
+      updatedList = Array.from(map.values());
+      return updatedList;
     });
+
+    persistAssets(updatedList);
   };
 
   // Handle Delete Asset
   const handleDeleteAsset = (id: string, ticker: string) => {
     if (confirm(`Tem certeza que deseja excluir o ativo ${ticker}?`)) {
-      setAssets(assets.filter((a) => a.id !== id));
-      // Optionally clean up dividend logs associated with this ticker
-      setDividends(dividends.filter((d) => d.ticker !== ticker));
+      const nextAssets = assets.filter((a) => a.id !== id);
+      const nextDividends = dividends.filter((d) => d.ticker !== ticker);
+      setAssets(nextAssets);
+      setDividends(nextDividends);
+      persistAssets(nextAssets);
+      persistDividends(nextDividends);
     }
   };
 
@@ -263,28 +338,26 @@ export default function InternacionalPage() {
     }
 
     const tickerUpper = assetForm.ticker.trim().toUpperCase();
+    let updatedList: Asset[] = [];
 
     if (editingAsset) {
       // Edit
-      setAssets(
-        assets.map((a) =>
-          a.id === editingAsset.id
-            ? {
-                ...a,
-                name: assetForm.name.trim(),
-                ticker: tickerUpper,
-                category: assetForm.category,
-                quantity: qty,
-                averagePrice: avgPrice,
-                observacoes: assetForm.observacoes.trim()
-              }
-            : a
-        )
+      updatedList = assets.map((a) =>
+        a.id === editingAsset.id
+          ? {
+              ...a,
+              name: assetForm.name.trim(),
+              ticker: tickerUpper,
+              category: assetForm.category,
+              quantity: qty,
+              averagePrice: avgPrice,
+              observacoes: assetForm.observacoes.trim()
+            }
+          : a
       );
     } else {
       // Add new
-      // Generate some simulated current price reasonably close to avgPrice for realistic preview
-      const simulatedCurrentPrice = avgPrice * (1 + (Math.random() * 0.4 - 0.1)); // -10% to +30%
+      const simulatedCurrentPrice = avgPrice * (1 + (Math.random() * 0.4 - 0.1));
       const newAsset: Asset = {
         id: Math.random().toString(36).substring(2, 9),
         name: assetForm.name.trim(),
@@ -295,9 +368,11 @@ export default function InternacionalPage() {
         currentPrice: parseFloat(simulatedCurrentPrice.toFixed(2)),
         observacoes: assetForm.observacoes.trim()
       };
-      setAssets([...assets, newAsset]);
+      updatedList = [...assets, newAsset];
     }
 
+    setAssets(updatedList);
+    persistAssets(updatedList);
     setShowAssetModal(false);
   };
 
@@ -330,14 +405,18 @@ export default function InternacionalPage() {
       observacoes: dividendForm.observacoes.trim()
     };
 
-    setDividends([newDiv, ...dividends]);
+    const updated = [newDiv, ...dividends];
+    setDividends(updated);
+    persistDividends(updated);
     setShowDividendModal(false);
   };
 
   // Delete Dividend receipt
   const handleDeleteDividend = (id: string) => {
     if (confirm('Deseja excluir esse lançamento de dividendo?')) {
-      setDividends(dividends.filter((d) => d.id !== id));
+      const updated = dividends.filter((d) => d.id !== id);
+      setDividends(updated);
+      persistDividends(updated);
     }
   };
 
